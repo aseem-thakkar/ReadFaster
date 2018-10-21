@@ -1,11 +1,11 @@
 package com.example.aseem.myapplication;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.res.AssetManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
 import android.view.WindowManager;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -23,22 +23,25 @@ import nl.siegmann.epublib.epub.EpubReader;
 
 public class MainActivity extends AppCompatActivity {
     TextView mid, first, last, s1, s2;
+    TextView tri1;
     int freq, i;
     Runnable updater;
+    long pointer;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         i = 0;
+        pointer=0;
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         getSupportActionBar().hide();
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         AssetManager assetManager = getAssets();
-        freq = 60000 / 120;
+        freq = 60000 / 30;
 
-        boolean result = checkIfFileExists();
-        if (result == false) {
+        long result = checkIfFileExists();
+        if (result == 0) {
             Toast.makeText(this, "Caching the File coz I see it first time", Toast.LENGTH_SHORT).show();
             try {
 
@@ -74,26 +77,29 @@ public class MainActivity extends AppCompatActivity {
                 e.printStackTrace();
             }
         }
-        startHandler();
+        startHandler(result);
 
     }
 
-    private boolean checkIfFileExists() {
+    private long checkIfFileExists() {
         try {
             FileInputStream axe = openFileInput("temp");
-            Toast.makeText(this, "Found old File!", Toast.LENGTH_SHORT).show();
-            return true;
+            SharedPreferences sharedPref = this.getPreferences(Context.MODE_PRIVATE);
+            pointer = sharedPref.getLong("status", pointer);
+            Toast.makeText(this, "Found old File! with status : "+ pointer, Toast.LENGTH_SHORT).show();
+            return (pointer-7);
         } catch (Exception e) {
-            return false;
+            return 0;
         }
     }
 
-    private void startHandler() {
+    private void startHandler(long p) {
         mid = findViewById(R.id.word);
         first = findViewById(R.id.word1);
         last = findViewById(R.id.word2);
         s1 = findViewById(R.id.sentence1);
         s2 = findViewById(R.id.sentence2);
+        tri1=findViewById(R.id.tri1);
         s1.setText("");
         s2.setText("");
 
@@ -103,6 +109,12 @@ public class MainActivity extends AppCompatActivity {
             b = new Scanner(new InputStreamReader(axe));
         } catch (Exception e) {
             e.printStackTrace();
+        }
+
+        if(p!=-1){
+            for(long i = 0;i<p;i++)
+                b.next();
+            pointer=p;
         }
 
         s1.setText(s1.getText()+b.next()+" "+b.next());
@@ -118,22 +130,29 @@ public class MainActivity extends AppCompatActivity {
 
         final Handler timerHandler = new Handler();
         final Scanner finalB = b;
+
+        pointer+=7;
+
         updater = new Runnable() {
             @Override
             public void run() {
 
-                Log.d("seb",".\ns1 : "+s1.getText()+"\nword :"+first.getText()+mid.getText()+last.getText()+"\ns2 :"+ s2.getText()+"\n=================================\n");
+//                Log.d("seb",".\ns1 : "+s1.getText()+"\nword :"+first.getText()+mid.getText()+last.getText()+"\ns2 :"+ s2.getText()+"\n=================================\n");
                 s1.setText(s1.getText() +" "+first.getText()+mid.getText()+last.getText());
                 while(s1.getText().length()>30){
                     int x=s1.getText().toString().indexOf(" ");
                     s1.setText(s1.getText().toString().substring(x+1));
+//                    pointer++;
                 }
 
                 String a = s2.getText().toString().trim();
                 int indexOfSpace = a.indexOf(" ");
                 a=a.substring(0,indexOfSpace);
                 if(s2.getText().length()<55)
+                {
                     s2.setText((s2.getText().toString().substring(indexOfSpace+1))+" "+finalB.next());
+                    pointer++;
+                }
                 else
                     s2.setText(s2.getText().toString().substring(indexOfSpace+1));
 
@@ -144,13 +163,21 @@ public class MainActivity extends AppCompatActivity {
                 first.setText(b);
                 mid.setText(c);
                 last.setText(d);
-
+//                tri1.setText(pointer+"");
                 timerHandler.postDelayed(updater, freq);
             }
         };
         timerHandler.post(updater);
 
-
     }
 
+    @Override
+    protected void onPause() {
+        super.onPause();
+        SharedPreferences sharedPref = this.getPreferences(Context.MODE_PRIVATE);
+        SharedPreferences.Editor status = sharedPref.edit();
+        status.putLong("status", pointer);
+        status.commit();
+        Toast.makeText(this, "saved the status as "+pointer, Toast.LENGTH_SHORT).show();
+    }
 }
